@@ -1,0 +1,9 @@
+source_name,canonical_name,rule_type,scenario_name,default_merge,decision_note,source_url
+Bosnia & Herzegovina,Bosnia and Herzegovina,spelling_variant,,true,名称写法差异；统一为FIFA使用的国家队名称,https://www.fifa.com/en/articles/bosnia-and-herzegovina-team-profile-history
+Bosnia-Herzegovina,Bosnia and Herzegovina,spelling_variant,,true,名称写法差异；统一为FIFA使用的国家队名称,https://www.fifa.com/en/articles/bosnia-and-herzegovina-team-profile-history
+Ivory Coast,Côte d'Ivoire,language_variant,,true,英语名称与法语名称指同一国家队；FIFA资料同时使用Ivory Coast与Côte d'Ivoire,https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/cote-divoire-qualify
+USA,United States,abbreviation_variant,,true,简称与全称指同一国家队,https://www.fifa.com/articles/usa-team-profile-history
+Zaire,DR Congo,historical_country_name,,true,刚果民主共和国1974年参赛时称Zaire；按同一国家队历史名称归并,https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/qualifiers/play-off-tournament/articles/sebastien-desabre-congo-dr-interview
+Germany,Germany,historical_aggregation_scenario,Germany (all historical teams),false,仅敏感性分析：把德国、东德、西德参赛队合并；不作为默认归并口径,
+East Germany,East Germany,historical_aggregation_scenario,Germany (all historical teams),false,仅敏感性分析：把德国、东德、西德参赛队合并；不作为默认归并口径,
+West Germany,West Germany,historical_aggregation_scenario,Germany (all historical teams),false,仅敏感性分析：把德国、东德、西德参赛队合并；不作为默认归并口径,

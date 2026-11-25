@@ -21,16 +21,23 @@ const COUNTRY_ZH = {
   "United States of America": "美国", "Curaçao": "库拉索", "Curaçao": "库拉索", "Cape Verde": "佛得角",
   "DR Congo": "刚果（金）", "Congo DR": "刚果（金）", "North Macedonia": "北马其顿", "Czechia": "捷克",
   "Türkiye": "土耳其", "Korea Republic": "韩国", "Korea DPR": "朝鲜", "IR Iran": "伊朗",
+  "Bosnia & Herzegovina": "波黑", "Bosnia-Herzegovina": "波黑", USA: "美国", Zaire: "扎伊尔",
 };
 
 const state = {
   data: null,
+  rows: [],
+  countries: [],
+  nameMode: "standard",
   view: "leaderboard",
   profileCountry: "Brazil",
   compareCountries: [],
   compareMode: "goals",
-  rank: { from: "all", to: "all", stage: "全部", search: "", sort: "goals_for", dir: -1 },
+  rank: { from: "all", to: "all", stage: "全部", search: "", sort: "goals_for", dir: -1, metric: "goals_for", minMatches: 10 },
   heatStage: "全部",
+  scorerYear: "all",
+  scorerCountry: "all",
+  scorerSearch: "",
 };
 
 const number = (value, digits = 0) => Number(value).toLocaleString("zh-CN", {
@@ -49,13 +56,36 @@ async function loadData() {
     if (!response.ok) throw new Error(`数据请求失败（${response.status}）`);
     const stream = response.body.pipeThrough(new DecompressionStream("gzip"));
     state.data = await new Response(stream).json();
-    const overall = aggregate(state.data.country_matches);
+    refreshRows();
+    const nameMode = document.getElementById("name-mode");
+    nameMode.value = state.nameMode;
+    nameMode.addEventListener("change", (event) => {
+      state.nameMode = event.target.value;
+      refreshRows();
+      render();
+    });
+    const overall = aggregate(state.rows);
     const byGoals = overall.slice().sort((a, b) => b.goals_for - a.goals_for);
     state.compareCountries = byGoals.slice(0, 4).map((row) => row.country);
-    state.profileCountry = byGoals[0]?.country || state.data.countries[0];
+    state.profileCountry = byGoals[0]?.country || state.countries[0];
     render();
   } catch (error) {
     root.innerHTML = `<div class="error-box">无法读取项目数据：${esc(error.message)}。请通过本地网站地址打开页面。</div>`;
+  }
+}
+
+function refreshRows() {
+  const sourceNames = state.nameMode === "source";
+  state.rows = state.data.country_matches.map((row) => ({
+    ...row,
+    country: sourceNames ? row.country_source : row.country,
+    opponent: sourceNames ? row.opponent_source : row.opponent,
+  }));
+  state.countries = [...new Set(state.rows.map((row) => row.country))].sort();
+  const byGoals = aggregate(state.rows).sort((a, b) => b.goals_for - a.goals_for);
+  state.compareCountries = byGoals.slice(0, 4).map((row) => row.country);
+  if (!state.countries.includes(state.profileCountry)) {
+    state.profileCountry = byGoals[0]?.country || state.countries[0];
   }
 }
 
@@ -122,7 +152,7 @@ function filteredRows() {
   const filter = state.rank;
   const from = filter.from === "all" ? -Infinity : Number(filter.from);
   const to = filter.to === "all" ? Infinity : Number(filter.to);
-  return state.data.country_matches.filter((row) => (
+  return state.rows.filter((row) => (
     row.edition_year >= from && row.edition_year <= to
     && (filter.stage === "全部" || row.stage === filter.stage)
     && countryLabel(row.country).toLowerCase().includes(filter.search.toLowerCase())
@@ -135,20 +165,21 @@ function setPageHeading(title, subtitle) {
 }
 
 function renderMetrics() {
-  const matches = state.data.country_match_count / 2;
-  const goals = state.data.country_matches.reduce((sum, row) => sum + row.goals_for, 0);
+  const matches = state.rows.length / 2;
+  const goals = state.rows.reduce((sum, row) => sum + row.goals_for, 0);
+  const countryCount = state.countries.length;
   const average = goals / matches;
   const metrics = [
     ["参赛届次", number(state.data.years.length), "届世界杯"],
     ["比赛数量", number(matches), "场已收录比赛"],
-    ["国家队队名", number(state.data.country_count), "保留来源队名"],
+    ["国家队名称", number(countryCount), state.nameMode === "source" ? "来源名称" : "标准名称"],
     ["比赛总进球", number(goals), `场均 ${number(average, 2)} 球/场`],
   ];
   document.getElementById("metric-strip").innerHTML = metrics.map(([label, value, note]) => `
     <div class="metric"><div class="metric-label">${label}</div><div class="metric-value">${value}</div><div class="metric-note">${note}</div></div>
   `).join("");
   document.getElementById("edition-range").textContent = `${state.data.years[0]}–${state.data.years.at(-1)}`;
-  document.getElementById("team-count").textContent = `${state.data.country_count} 支队名`;
+  document.getElementById("team-count").textContent = `${countryCount} 个队名`;
 }
 
 function yearOptions(selected, all = true) {
@@ -158,16 +189,18 @@ function yearOptions(selected, all = true) {
 }
 
 function renderLeaderboard() {
-  setPageHeading("世界杯国家队总榜", "按累计进球浏览国家队表现，并查看参赛规模与进球效率。");
+  setPageHeading("世界杯国家队进球与效率", "总进球反映累计产出；场均进球按国家队每次出场计算。");
   const rows = filteredRows();
-  const summaries = aggregate(rows).sort((a, b) => {
+  const metric = state.rank.metric;
+  const minMatches = metric === "goals_per_match" ? Number(state.rank.minMatches) : 0;
+  const eligible = aggregate(rows).filter((row) => row.matches >= minMatches);
+  const summaries = eligible.slice().sort((a, b) => {
     const key = state.rank.sort;
     const diff = (a[key] ?? -Infinity) - (b[key] ?? -Infinity);
     return state.rank.dir * diff || a.country.localeCompare(b.country);
   });
-  const top = summaries.slice(0, 12);
-  const maxGoals = Math.max(1, ...top.map((row) => row.goals_for));
-  const chart = renderBarChart(top, maxGoals);
+  const top = eligible.slice().sort((a, b) => b[metric] - a[metric] || b.matches - a.matches).slice(0, 12);
+  const chart = renderBarChart(top, metric);
   const tableRows = summaries.map((row, index) => `
     <tr>
       <td class="rank-cell">${index + 1}</td>
@@ -185,12 +218,14 @@ function renderLeaderboard() {
           <label class="control compact">至届次<select id="rank-to">${yearOptions(state.rank.to)}</select></label>
           <label class="control compact">比赛阶段<select id="rank-stage">${["全部", "小组赛", "淘汰赛"].map((stage) => `<option ${state.rank.stage === stage ? "selected" : ""}>${stage}</option>`).join("")}</select></label>
           <label class="control search-control">搜索国家队<input id="rank-search" type="search" value="${esc(state.rank.search)}" placeholder="输入国家队名称" autocomplete="off"></label>
+          ${metric === "goals_per_match" ? `<label class="control compact">最少参赛<select id="rank-min-matches">${[0, 5, 10, 20].map((value) => `<option value="${value}" ${Number(state.rank.minMatches) === value ? "selected" : ""}>${value ? `${value} 场` : "不限"}</option>`).join("")}</select></label>` : ""}
+          <div class="segmented" role="group" aria-label="排行榜指标"><button class="segment-button ${metric === "goals_for" ? "is-active" : ""}" data-rank-metric="goals_for" type="button">总进球</button><button class="segment-button ${metric === "goals_per_match" ? "is-active" : ""}" data-rank-metric="goals_per_match" type="button">场均进球</button></div>
           <span class="result-count">${summaries.length} 支</span>
         </div>
       </div>
       <div class="dashboard-grid">
-        <section class="panel"><div class="panel-heading"><h3>进球前 12</h3><span class="panel-unit">单位：球</span></div>${chart}</section>
-        <section class="panel table-panel"><div class="panel-heading"><h3>国家队表现</h3><span class="panel-unit">场均单位：球/场</span></div>
+        <section class="panel"><div class="panel-heading"><h3>${metric === "goals_for" ? "总进球前 12" : `场均进球前 12${minMatches ? `（至少 ${minMatches} 场）` : ""}`}</h3><span class="panel-unit">单位：${metric === "goals_for" ? "球" : "球/场"}</span></div>${chart}</section>
+        <section class="panel table-panel"><div class="panel-heading"><h3>国家队表现</h3><span class="panel-unit">进球：球；场均：球/场</span></div>
           <div class="table-scroll"><table><thead><tr>
             <th>#</th><th>国家队</th><th><button class="sort-button" data-sort="goals_for">进球 ↕</button></th><th><button class="sort-button" data-sort="matches">场数 ↕</button></th><th><button class="sort-button" data-sort="goals_per_match">场均 ↕</button></th><th><button class="sort-button" data-sort="goal_difference">净胜球 ↕</button></th><th>胜 / 平 / 负</th>
           </tr></thead><tbody>${tableRows || '<tr><td colspan="7" class="empty-state">没有符合条件的记录</td></tr>'}</tbody></table></div>
@@ -200,24 +235,27 @@ function renderLeaderboard() {
   bindLeaderboard();
 }
 
-function renderBarChart(rows, maxValue) {
+function renderBarChart(rows, metric) {
   const width = 530;
   const height = Math.max(230, 54 + rows.length * 35);
   const left = 100, right = 54, top = 18, plotW = width - left - right;
+  const maxValue = Math.max(1, ...rows.map((row) => row[metric]));
   const ticks = 4;
   const grid = Array.from({ length: ticks + 1 }, (_, index) => {
-    const value = Math.round(maxValue * index / ticks);
+    const rawValue = maxValue * index / ticks;
+    const value = metric === "goals_for" ? Math.round(rawValue) : Math.round(rawValue * 10) / 10;
     const x = left + plotW * index / ticks;
-    return `<line class="axis-line" x1="${x}" y1="${top}" x2="${x}" y2="${height - 26}"/><text class="axis-label" x="${x}" y="${height - 8}" text-anchor="middle">${number(value)}</text>`;
+    return `<line class="axis-line" x1="${x}" y1="${top}" x2="${x}" y2="${height - 26}"/><text class="axis-label" x="${x}" y="${height - 8}" text-anchor="middle">${number(value, metric === "goals_for" ? 0 : 1)}</text>`;
   }).join("");
   const bars = rows.map((row, index) => {
     const y = top + index * 35 + 5;
-    const barW = Math.max(2, plotW * row.goals_for / maxValue);
+    const value = row[metric];
+    const barW = Math.max(2, plotW * value / maxValue);
     return `<text class="bar-label" x="${left - 9}" y="${y + 15}" text-anchor="end">${esc(countryLabel(row.country))}</text>
       <rect x="${left}" y="${y}" width="${barW}" height="20" rx="3" fill="${index === 0 ? "#cf7336" : "#087e83"}"/>
-      <text class="bar-value" x="${left + barW + 7}" y="${y + 15}">${number(row.goals_for)}</text>`;
+      <text class="bar-value" x="${left + barW + 7}" y="${y + 15}">${number(value, metric === "goals_for" ? 0 : 2)}</text>`;
   }).join("");
-  return `<div class="chart-wrap"><svg role="img" aria-label="国家队累计进球横向条形图，单位为球" viewBox="0 0 ${width} ${height}">${grid}${bars}</svg></div>`;
+  return `<div class="chart-wrap"><svg role="img" aria-label="国家队${metric === "goals_for" ? "总进球" : "场均进球"}横向条形图" viewBox="0 0 ${width} ${height}">${grid}${bars}</svg></div>`;
 }
 
 function bindLeaderboard() {
@@ -229,8 +267,20 @@ function bindLeaderboard() {
     const key = button.dataset.sort;
     if (state.rank.sort === key) state.rank.dir *= -1;
     else { state.rank.sort = key; state.rank.dir = -1; }
+    if (key === "goals_for" || key === "goals_per_match") state.rank.metric = key;
     renderLeaderboard();
   }));
+  document.querySelectorAll("[data-rank-metric]").forEach((button) => button.addEventListener("click", () => {
+    state.rank.metric = button.dataset.rankMetric;
+    state.rank.sort = button.dataset.rankMetric;
+    state.rank.dir = -1;
+    renderLeaderboard();
+  }));
+  const minMatches = document.getElementById("rank-min-matches");
+  if (minMatches) minMatches.addEventListener("change", (event) => {
+    state.rank.minMatches = Number(event.target.value);
+    renderLeaderboard();
+  });
   document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => {
     state.profileCountry = button.dataset.country;
     setView("profile");
@@ -239,9 +289,9 @@ function bindLeaderboard() {
 
 function renderProfile() {
   setPageHeading("国家队档案", "查看单支国家队的世界杯进球、失球、胜平负和逐届变化。");
-  const options = state.data.countries.slice().sort((a, b) => countryLabel(a).localeCompare(countryLabel(b), "zh-CN"));
+  const options = state.countries.slice().sort((a, b) => countryLabel(a).localeCompare(countryLabel(b), "zh-CN"));
   if (!options.includes(state.profileCountry)) state.profileCountry = options[0];
-  const rows = state.data.country_matches.filter((row) => row.country === state.profileCountry);
+  const rows = state.rows.filter((row) => row.country === state.profileCountry);
   const summary = aggregate(rows)[0];
   const editions = editionStats(rows);
   const stageRows = [
@@ -333,12 +383,12 @@ function renderStageBars(stageRows) {
 
 function renderCompare() {
   setPageHeading("多队比较", "选择几支国家队，对照逐届总进球或场均进球。");
-  const all = aggregate(state.data.country_matches).sort((a, b) => a.country.localeCompare(b.country));
+  const all = aggregate(state.rows).sort((a, b) => a.country.localeCompare(b.country));
   const selectedRows = state.compareCountries.map((country) => all.find((row) => row.country === country)).filter(Boolean);
   const options = all.map((row) => `<option value="${esc(row.country)}">${esc(countryLabel(row.country))} · ${esc(row.country)}</option>`).join("");
   const table = selectedRows.map((row) => `<tr><td>${esc(countryLabel(row.country))}</td><td>${number(row.goals_for)}</td><td>${number(row.matches)}</td><td>${number(row.goals_per_match, 2)}</td><td>${number(row.wins)} / ${number(row.draws)} / ${number(row.losses)}</td></tr>`).join("");
   const series = selectedRows.map((row, index) => {
-    const editions = editionStats(state.data.country_matches.filter((match) => match.country === row.country));
+    const editions = editionStats(state.rows.filter((match) => match.country === row.country));
     return {
       name: row.country,
       label: countryLabel(row.country),
@@ -419,7 +469,64 @@ function renderHeatmap() {
 }
 
 function filteredRowsForStage(stage) {
-  return stage === "全部" ? state.data.country_matches : state.data.country_matches.filter((row) => row.stage === stage);
+  return stage === "全部" ? state.rows : state.rows.filter((row) => row.stage === stage);
+}
+
+function renderPlayerGoalChart(rows) {
+  const chartRows = rows.slice(0, 12).map((row) => ({ ...row, country: row.player, goals_for: row.goals }));
+  return renderBarChart(chartRows, "goals_for");
+}
+
+function sourceCountryLabel(value) {
+  return String(value || "").split("；").map((name) => countryLabel(name)).join(" / ");
+}
+
+function renderScorers() {
+  setPageHeading("世界杯球员射手榜", "查看历届世界杯进球球员、点球和乌龙球记录。");
+  const yearRows = state.scorerYear === "all"
+    ? state.data.player_goals
+    : state.data.player_goals_by_edition.filter((row) => row.edition_year === Number(state.scorerYear));
+  const allCountries = [...new Set(state.data.player_goals.map((row) => row.country))].sort();
+  const search = state.scorerSearch.trim().toLowerCase();
+  const rows = yearRows.filter((row) => (
+    (state.scorerCountry === "all" || row.country === state.scorerCountry)
+    && (!search || row.player.toLowerCase().includes(search) || countryLabel(row.country).toLowerCase().includes(search))
+  )).sort((a, b) => b.goals - a.goals || b.scoring_matches - a.scoring_matches || a.player.localeCompare(b.player));
+  const tableRows = rows.map((row, index) => `
+    <tr><td class="rank-cell">${index + 1}</td><td class="country-name-cell">${esc(row.player)}</td>
+      <td>${esc(state.nameMode === "source" ? sourceCountryLabel(row.source_countries) : countryLabel(row.country))}</td>
+      <td>${number(row.goals)}</td><td>${number(row.penalty_goals)}</td><td>${number(row.own_goals)}</td>
+      <td>${number(row.scoring_matches)}</td><td>${state.scorerYear === "all" ? `${number(row.editions)} 届` : row.edition_year}</td></tr>`).join("");
+  const scorerChart = renderPlayerGoalChart(rows);
+  document.getElementById("view-root").innerHTML = `
+    <section class="view-section">
+      <div class="section-head">
+        <div><h2>球员世界杯进球</h2><p class="section-note">只统计与比赛比分核对一致的进球事件；乌龙球单列，点球计入球员进球</p></div>
+        <div class="controls">
+          <label class="control compact">世界杯届次<select id="scorer-year"><option value="all" ${state.scorerYear === "all" ? "selected" : ""}>全部届次</option>${state.data.years.map((year) => `<option value="${year}" ${String(state.scorerYear) === String(year) ? "selected" : ""}>${year}</option>`).join("")}</select></label>
+          <label class="control compact">国家队<select id="scorer-country"><option value="all">全部</option>${allCountries.map((country) => `<option value="${esc(country)}" ${country === state.scorerCountry ? "selected" : ""}>${esc(countryLabel(country))}</option>`).join("")}</select></label>
+          <label class="control search-control">搜索球员<input id="scorer-search" type="search" value="${esc(state.scorerSearch)}" placeholder="输入球员姓名" autocomplete="off"></label>
+          <span class="result-count">${rows.length} 名球员</span>
+        </div>
+      </div>
+      <div class="scorer-layout">
+        <section class="panel"><div class="panel-heading"><h3>进球最多的球员</h3><span class="panel-unit">单位：球</span></div>${scorerChart}</section>
+        <section class="panel table-panel"><div class="panel-heading"><h3>射手明细</h3><div class="data-links"><a class="data-link" href="./data/player_goal_summary.csv" download>下载生涯汇总</a><a class="data-link" href="./data/player_goal_summary_by_edition.csv" download>下载逐届汇总</a></div></div>
+          <div class="table-scroll"><table><thead><tr><th>#</th><th>球员</th><th>国家队</th><th>进球（球）</th><th>点球（球）</th><th>乌龙球（次）</th><th>进球场次</th><th>届次</th></tr></thead>
+          <tbody>${tableRows || '<tr><td colspan="8" class="empty-state">没有符合筛选条件的球员</td></tr>'}</tbody></table></div>
+        </section>
+      </div>
+      <p class="section-note scorer-method">汇总按球员姓名和国家队归并；数据源没有稳定球员ID，少数拼写差异或同名情况可能无法自动识别。</p>
+    </section>`;
+  document.getElementById("scorer-year").addEventListener("change", (event) => { state.scorerYear = event.target.value; renderScorers(); });
+  document.getElementById("scorer-country").addEventListener("change", (event) => { state.scorerCountry = event.target.value; renderScorers(); });
+  document.getElementById("scorer-search").addEventListener("input", (event) => {
+    state.scorerSearch = event.target.value;
+    renderScorers();
+    const input = document.getElementById("scorer-search");
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
 }
 
 function setView(view) {
@@ -433,7 +540,8 @@ function renderView() {
   if (state.view === "leaderboard") renderLeaderboard();
   else if (state.view === "profile") renderProfile();
   else if (state.view === "compare") renderCompare();
-  else renderHeatmap();
+  else if (state.view === "heatmap") renderHeatmap();
+  else renderScorers();
 }
 
 function render() {

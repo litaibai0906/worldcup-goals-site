@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="按国家队查看历届世界杯进球、失球和比赛阶段表现。">
+    <meta name="description" content="查询世界杯国家队进球效率和球员射手数据。">
     <title>世界杯国家队进球工作台</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -19,6 +19,7 @@
           <button class="nav-item" data-view="profile" type="button">国家队档案</button>
           <button class="nav-item" data-view="compare" type="button">多队比较</button>
           <button class="nav-item" data-view="heatmap" type="button">届次热图</button>
+          <button class="nav-item" data-view="scorers" type="button">球员射手</button>
         </nav>
         <div class="sidebar-footer">
           <span class="status-dot"></span>
@@ -30,17 +31,20 @@
       <main class="main-area">
         <header class="topbar">
           <div class="breadcrumb">数据探索 <span>/</span> 世界杯</div>
-          <div class="topbar-meta"><span id="edition-range">1930–2026</span><span class="meta-separator"></span><span id="team-count">93 支队名</span></div>
+          <div class="topbar-meta"><span id="edition-range">1930–2026</span><span class="meta-separator"></span><span id="team-count">89 个队名</span></div>
         </header>
 
         <div class="content-wrap">
           <section class="page-heading">
             <div>
               <p class="eyebrow">国家队进球分析</p>
-              <h1 id="page-title">世界杯国家队总榜</h1>
-              <p class="page-subtitle" id="page-subtitle">按累计进球浏览国家队表现，并查看参赛规模与进球效率。</p>
+              <h1 id="page-title">世界杯国家队进球与效率</h1>
+              <p class="page-subtitle" id="page-subtitle">累计进球受参赛场数影响；场均进球按国家队每次出场计算。</p>
             </div>
-            <a class="download-link" href="./data/worldcup.json" download>下载分析数据 <span aria-hidden="true">↓</span></a>
+            <div class="heading-actions">
+              <label class="control compact">队名口径<select id="name-mode"><option value="standard">归并确定别名</option><option value="source">查看来源原名</option></select></label>
+              <a class="download-link" href="./data/worldcup.json" download>下载分析数据 <span aria-hidden="true">↓</span></a>
+            </div>
           </section>
 
           <section class="metric-strip" id="metric-strip" aria-label="数据概览"></section>
@@ -48,7 +52,9 @@
 
           <footer class="site-footer">
             <span>进球包含加时赛；点球大战罚球不计为比赛进球。</span>
-            <span>国家队名称沿用来源写法，未自动合并历史名称。</span>
+            <span>默认归并4组有依据的名称别名；德国、西德和东德仍分开统计。可切换查看来源原名。</span>
+            <a href="./data/team_name_aliases.csv" download>下载队名映射依据</a>
+            <a href="./data/README.md">数据与口径</a>
           </footer>
         </div>
       </main>
