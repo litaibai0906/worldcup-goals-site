@@ -29,3 +29,7 @@
 网站档案页提供逐届国家队名单。1930–2022 年名单取自 Joshua C. Fjelstul 的 [Fjelstul World Cup Database](https://github.com/jfjelstul/worldcup)，使用项目保存的 `data/raw/fjelstul_worldcup_squads.csv`。该数据库版权声明为 © 2023 Joshua C. Fjelstul, Ph.D.，采用 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/legalcode)；网站数据保留该署名和许可。项目筛选男子世界杯届次，并按比赛数据的国家队名称整理队名；球员、号码和位置沿用来源记录，早期赛事缺少号码时显示为空。
 
 2026 年名单取自本地保存的 [OpenFootball World Cup JSON](https://github.com/openfootball/worldcup.json) `2026/worldcup.squads.json`，遵循该仓库的 CC0 1.0 许可。网站把来源队名映射到项目使用的国家队名称，并与历史名单合并；德国、西德、东德等历史队名仍分别保留。
+
+## 进球时间热区
+
+网站档案页的可视化按届次和国家队汇总项目逐球事件中的进球分钟。每格对应 5 分钟，颜色深浅表示该区间的进球数；半场补时并入该半场末段，加时赛单独显示。数据不含球场射门坐标，也不含点球大战罚球，因此图表展示的是进球时间分布，不是球场落点。

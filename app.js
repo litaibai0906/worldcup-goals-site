@@ -293,6 +293,52 @@ function openCountryProfile(country, editionYear = "") {
   setView("profile");
 }
 
+function renderGoalMinuteHeatmap(records, country, year) {
+  const record = (records || []).find((row) => row.country === country && row.edition_year === Number(year));
+  const bins = record?.minute_bins || Array(24).fill(0);
+  const maxGoals = Math.max(0, ...bins);
+  const rangeLabel = (index) => {
+    if (index < 9) {
+      const start = index * 5 + 1;
+      const end = start + 4;
+      return String(start).padStart(2, "0") + "–" + (end === 45 ? "45+" : String(end));
+    }
+    if (index < 18) {
+      const start = 46 + (index - 9) * 5;
+      const end = start + 4;
+      return String(start) + "–" + (end === 90 ? "90+" : String(end));
+    }
+    const start = 91 + (index - 18) * 5;
+    return String(start) + "–" + String(start + 4);
+  };
+  const groups = [
+    { label: "上半场", start: 0, length: 9 },
+    { label: "下半场", start: 9, length: 9 },
+    { label: "加时赛", start: 18, length: 6 },
+  ];
+  const groupsHtml = groups.map((group) => {
+    const cells = Array.from({ length: group.length }, (_, offset) => {
+      const index = group.start + offset;
+      const goals = bins[index] || 0;
+      const intensity = maxGoals ? goals / maxGoals : 0;
+      const range = rangeLabel(index);
+      const classes = "goal-heat-cell" + (goals === 0 ? " is-empty" : "") + (intensity >= 0.6 ? " is-strong" : "");
+      return '<div class="' + classes + '" style="--heat:' + intensity.toFixed(3) + '" title="' + range + ' 分钟：' + goals + ' 球" aria-label="' + range + ' 分钟，' + goals + ' 球"><span class="goal-heat-range">' + range + "</span></div>";
+    }).join("");
+    return '<div class="goal-heat-group"><div class="goal-heat-group-label">' + group.label + '</div><div class="goal-heat-cells">' + cells + "</div></div>";
+  }).join("");
+
+  return [
+    '<section class="panel goal-heatmap-panel">',
+    '<div class="panel-heading"><h3>' + esc(countryLabel(country)) + " · " + esc(year) + ' 进球时间热区图</h3><span class="panel-unit">' + number(record?.goals || 0) + " 球</span></div>",
+    '<div class="goal-heatmap-body">',
+    '<div class="goal-heat-groups" role="img" aria-label="' + esc(countryLabel(country)) + " " + esc(year) + ' 年进球分钟分布">' + groupsHtml + "</div>",
+    '<div class="goal-heat-legend"><span>少</span><i class="goal-heat-scale"></i><span>多' + (maxGoals ? " · " + number(maxGoals) + " 球/区间" : "") + "</span></div>",
+    '<p class="goal-heat-note">按比赛分钟汇总；资料不含射门落点坐标；补时归入半场末段，加时单独展示。</p>',
+    "</div></section>",
+  ].join("");
+}
+
 function renderProfile() {
   setPageHeading("国家队档案", "查看单支国家队的世界杯进球、逐届表现和历届参赛阵容。");
   const options = state.countries.slice().sort((a, b) => countryLabel(a).localeCompare(countryLabel(b), "zh-CN"));
@@ -309,6 +355,7 @@ function renderProfile() {
   const selectedSquad = countrySquads.filter((row) => row.edition_year === Number(state.profileYear));
   const hasClubData = selectedSquad.some((player) => player.club);
   const positionLabels = { GK: "门将", DF: "后卫", MF: "中场", FW: "前锋" };
+  const goalHeatmapHtml = renderGoalMinuteHeatmap(state.data.goal_time_heatmaps, squadCountry, state.profileYear);
   const stageRows = [
     { label: "小组赛", stage: summary.group },
     { label: "淘汰赛", stage: summary.knockout },
@@ -337,6 +384,7 @@ function renderProfile() {
           <div class="table-scroll"><table><thead><tr><th>号码</th><th>球员</th><th>位置</th>${hasClubData ? "<th>所属俱乐部</th>" : ""}</tr></thead><tbody>${squadRowsHtml || `<tr><td colspan="${hasClubData ? 4 : 3}" class="empty-state">暂无阵容资料</td></tr>`}</tbody></table></div>
         </section>
       </section>
+      ${goalHeatmapHtml}
       <div class="profile-grid">
         <section class="panel"><div class="panel-heading"><h3>逐届进球</h3><span class="panel-unit">单位：球/届</span></div>${renderLineChart([{ name: state.profileCountry, label: countryLabel(state.profileCountry), color: COLORS[0], points: state.data.years.map((year) => ({ year, value: editions.find((row) => row.year === year)?.goals ?? null })) }], state.data.years, "球/届")}</section>
         <section class="panel"><div class="panel-heading"><h3>比赛阶段</h3><span class="panel-unit">场均进球：球/场</span></div>${renderStageBars(stageRows)}</section>

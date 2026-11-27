@@ -121,6 +121,18 @@ tbody tr:hover { background: #f4f8f7; }
 .squad-section { margin-top: 18px; }
 .squad-player-name { min-width: 240px; text-align: left !important; }
 .squad-table .table-scroll { max-height: 560px; }
+.goal-heatmap-panel { margin: 18px 0 16px; }
+.goal-heatmap-body { display: grid; gap: 12px; padding: 14px 16px 13px; }
+.goal-heat-groups { display: grid; gap: 12px; }
+.goal-heat-group-label { margin-bottom: 6px; color: var(--muted); font-size: 11px; }
+.goal-heat-cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: 6px; }
+.goal-heat-cell { display: grid; place-items: center; min-width: 0; min-height: 48px; aspect-ratio: 1.65; border: 1px solid rgba(8,126,131,.22); border-radius: 4px; background: linear-gradient(135deg, rgba(8,126,131,.10), rgba(207,115,54,var(--heat))); }
+.goal-heat-cell.is-empty { border-color: #e6ebea; background: #f5f8f7; }
+.goal-heat-cell.is-strong .goal-heat-range { color: #fff; text-shadow: 0 1px 2px rgba(32,42,49,.4); }
+.goal-heat-range { color: var(--ink); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.goal-heat-legend { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
+.goal-heat-scale { display: inline-block; width: 82px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #b7dddd, #cf7336); }
+.goal-heat-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
 .compare-layout { display: grid; grid-template-columns: 255px minmax(0, 1fr); gap: 16px; align-items: start; }
 .compare-picker { padding: 16px; }
