@@ -118,6 +118,9 @@ tbody tr:hover { background: #f4f8f7; }
 .line-svg text, .heatmap-svg text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
 .profile-table { margin-top: 16px; }
 .profile-table .table-scroll { max-height: 440px; }
+.squad-section { margin-top: 18px; }
+.squad-player-name { min-width: 240px; text-align: left !important; }
+.squad-table .table-scroll { max-height: 560px; }
 
 .compare-layout { display: grid; grid-template-columns: 255px minmax(0, 1fr); gap: 16px; align-items: start; }
 .compare-picker { padding: 16px; }
@@ -210,6 +213,12 @@ tbody tr:hover { background: #f4f8f7; }
   .profile-stat:nth-child(3) { border-right: 1px solid var(--line); }
   .profile-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
   .profile-select { width: 100%; }
+  .squad-table table { table-layout: fixed; }
+  .squad-table th:first-child, .squad-table td:first-child { width: 42px; padding-left: 9px; }
+  .squad-player-name { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+  .squad-table th:nth-child(3), .squad-table td:nth-child(3) { width: 64px; }
+  .squad-table th:nth-child(4), .squad-table td:nth-child(4) { display: none; }
+  .squad-table th, .squad-table td { padding-left: 6px; padding-right: 6px; }
   .compare-picker { grid-template-columns: 1fr; }
   .compare-picker h3, .compare-picker p, .selected-list { grid-column: auto; }
   .site-footer { flex-direction: column; gap: 5px; }

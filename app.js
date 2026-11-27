@@ -2,7 +2,7 @@ const COLORS = ["#087e83", "#cf7336", "#477ca8", "#b95046", "#7560a8", "#638d49"
 const COUNTRY_ZH = {
   Argentina: "阿根廷", Australia: "澳大利亚", Belgium: "比利时", Brazil: "巴西", Chile: "智利",
   Croatia: "克罗地亚", Czechoslovakia: "捷克斯洛伐克", Denmark: "丹麦", England: "英格兰", France: "法国",
-  Germany: "德国", Hungary: "匈牙利", Italy: "意大利", Mexico: "墨西哥", Netherlands: "荷兰",
+  Germany: "德国", Hungary: "匈牙利", Ireland: "爱尔兰", Italy: "意大利", Mexico: "墨西哥", Netherlands: "荷兰",
   Poland: "波兰", Portugal: "葡萄牙", "Soviet Union": "苏联", Spain: "西班牙", Sweden: "瑞典",
   Uruguay: "乌拉圭", "West Germany": "西德", Yugoslavia: "南斯拉夫", "United States": "美国",
   "South Korea": "韩国", Japan: "日本", Cameroon: "喀麦隆", Nigeria: "尼日利亚", Morocco: "摩洛哥",
@@ -38,6 +38,7 @@ const state = {
   scorerYear: "all",
   scorerCountry: "all",
   scorerSearch: "",
+  profileYear: "",
 };
 
 const number = (value, digits = 0) => Number(value).toLocaleString("zh-CN", {
@@ -282,18 +283,32 @@ function bindLeaderboard() {
     renderLeaderboard();
   });
   document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => {
-    state.profileCountry = button.dataset.country;
-    setView("profile");
+    openCountryProfile(button.dataset.country);
   }));
 }
 
+function openCountryProfile(country, editionYear = "") {
+  state.profileCountry = country;
+  state.profileYear = editionYear ? String(editionYear) : "";
+  setView("profile");
+}
+
 function renderProfile() {
-  setPageHeading("国家队档案", "查看单支国家队的世界杯进球、失球、胜平负和逐届变化。");
+  setPageHeading("国家队档案", "查看单支国家队的世界杯进球、逐届表现和历届参赛阵容。");
   const options = state.countries.slice().sort((a, b) => countryLabel(a).localeCompare(countryLabel(b), "zh-CN"));
   if (!options.includes(state.profileCountry)) state.profileCountry = options[0];
   const rows = state.rows.filter((row) => row.country === state.profileCountry);
   const summary = aggregate(rows)[0];
   const editions = editionStats(rows);
+  const squadCountry = state.nameMode === "source"
+    ? state.data.country_matches.find((row) => row.country_source === state.profileCountry)?.country || state.profileCountry
+    : state.profileCountry;
+  const countrySquads = state.data.squads.filter((row) => row.country === squadCountry);
+  const squadYears = [...new Set(countrySquads.map((row) => row.edition_year))].sort((a, b) => a - b);
+  if (!squadYears.includes(Number(state.profileYear))) state.profileYear = String(squadYears.at(-1) || "");
+  const selectedSquad = countrySquads.filter((row) => row.edition_year === Number(state.profileYear));
+  const hasClubData = selectedSquad.some((player) => player.club);
+  const positionLabels = { GK: "门将", DF: "后卫", MF: "中场", FW: "前锋" };
   const stageRows = [
     { label: "小组赛", stage: summary.group },
     { label: "淘汰赛", stage: summary.knockout },
@@ -305,12 +320,23 @@ function renderProfile() {
   ];
   const rowsHtml = editions.slice().reverse().map((row) => `
     <tr><td>${row.year}</td><td>${number(row.matches)}</td><td>${number(row.goals)}</td><td>${number(row.average, 2)}</td><td>${number(row.wins)} / ${number(row.draws)} / ${number(row.losses)}</td><td>${row.goal_difference > 0 ? "+" : ""}${number(row.goal_difference)}</td></tr>`).join("");
+  const squadRowsHtml = selectedSquad.map((player) => `
+    <tr><td>${player.shirt_number > 0 ? number(player.shirt_number) : "—"}</td><td class="squad-player-name">${esc(player.player)}</td><td><span class="stage-badge">${esc(positionLabels[player.position_code] || player.position_code || "—")}</span></td>${hasClubData ? `<td>${esc(player.club || "—")}</td>` : ""}</tr>`).join("");
   document.getElementById("view-root").innerHTML = `
     <section class="view-section">
       <div class="section-head"><div><h2>国家队表现</h2><p class="section-note">队名沿用来源写法，历史名称单独统计</p></div>
         <label class="control primary-control">选择国家队<select class="profile-select" id="profile-select">${options.map((country) => `<option value="${esc(country)}" ${country === state.profileCountry ? "selected" : ""}>${esc(countryLabel(country))} · ${esc(country)}</option>`).join("")}</select></label>
       </div>
       <div class="profile-metrics">${stats.map(([label, value, unit]) => `<div class="profile-stat"><span>${label}</span><strong>${value}</strong><span>${unit}</span></div>`).join("")}</div>
+      <section class="squad-section">
+        <div class="section-head">
+          <div><h2>${state.profileYear ? `${esc(state.profileYear)} 年` : "世界杯历届"}国家队阵容</h2><p class="section-note">${selectedSquad.length ? `共 ${number(selectedSquad.length)} 名球员` : "该队暂无可用阵容记录"} · <a class="data-link" href="https://github.com/jfjelstul/worldcup" target="_blank" rel="noreferrer">Fjelstul World Cup Database</a> · <a class="data-link" href="https://github.com/openfootball/worldcup.json" target="_blank" rel="noreferrer">OpenFootball</a></p></div>
+          ${squadYears.length ? `<label class="control compact">世界杯届次<select id="squad-year">${squadYears.map((year) => `<option value="${year}" ${String(year) === state.profileYear ? "selected" : ""}>${year}</option>`).join("")}</select></label>` : ""}
+        </div>
+        <section class="panel table-panel squad-table"><div class="panel-heading"><h3>${esc(countryLabel(state.profileCountry))} · ${state.profileYear || "世界杯"}</h3><span class="panel-unit">号码 · 球员 · 位置</span></div>
+          <div class="table-scroll"><table><thead><tr><th>号码</th><th>球员</th><th>位置</th>${hasClubData ? "<th>所属俱乐部</th>" : ""}</tr></thead><tbody>${squadRowsHtml || `<tr><td colspan="${hasClubData ? 4 : 3}" class="empty-state">暂无阵容资料</td></tr>`}</tbody></table></div>
+        </section>
+      </section>
       <div class="profile-grid">
         <section class="panel"><div class="panel-heading"><h3>逐届进球</h3><span class="panel-unit">单位：球/届</span></div>${renderLineChart([{ name: state.profileCountry, label: countryLabel(state.profileCountry), color: COLORS[0], points: state.data.years.map((year) => ({ year, value: editions.find((row) => row.year === year)?.goals ?? null })) }], state.data.years, "球/届")}</section>
         <section class="panel"><div class="panel-heading"><h3>比赛阶段</h3><span class="panel-unit">场均进球：球/场</span></div>${renderStageBars(stageRows)}</section>
@@ -319,7 +345,9 @@ function renderProfile() {
         <div class="table-scroll"><table><thead><tr><th>届次年份</th><th>比赛场数</th><th>进球（球）</th><th>场均（球/场）</th><th>胜 / 平 / 负</th><th>净胜球</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
       </section>
     </section>`;
-  document.getElementById("profile-select").addEventListener("change", (event) => { state.profileCountry = event.target.value; renderProfile(); });
+  document.getElementById("profile-select").addEventListener("change", (event) => { state.profileCountry = event.target.value; state.profileYear = ""; renderProfile(); });
+  const squadYearSelect = document.getElementById("squad-year");
+  if (squadYearSelect) squadYearSelect.addEventListener("change", (event) => { state.profileYear = event.target.value; renderProfile(); });
 }
 
 function renderLineChart(series, years, unit) {
@@ -465,7 +493,7 @@ function renderHeatmap() {
       </section>
     </section>`;
   document.getElementById("heat-stage").addEventListener("change", (event) => { state.heatStage = event.target.value; renderHeatmap(); });
-  document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => { state.profileCountry = button.dataset.country; setView("profile"); }));
+  document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => openCountryProfile(button.dataset.country)));
 }
 
 function filteredRowsForStage(stage) {
@@ -533,6 +561,7 @@ function setView(view) {
   state.view = view;
   document.querySelectorAll(".nav-item").forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
   renderView();
+  window.scrollTo(0, 0);
 }
 
 function renderView() {
