@@ -33,11 +33,16 @@ const state = {
   profileCountry: "Brazil",
   compareCountries: [],
   compareMode: "goals",
+  headToHeadA: "Brazil",
+  headToHeadB: "Argentina",
   rank: { from: "all", to: "all", stage: "全部", search: "", sort: "goals_for", dir: -1, metric: "goals_for", minMatches: 10 },
   heatStage: "全部",
   scorerYear: "all",
   scorerCountry: "all",
   scorerSearch: "",
+  participantYear: "2026",
+  participantSearch: "",
+  participantSort: "name",
   profileYear: "",
 };
 
@@ -67,6 +72,7 @@ async function loadData() {
     });
     const overall = aggregate(state.rows);
     const byGoals = overall.slice().sort((a, b) => b.goals_for - a.goals_for);
+    state.participantYear = String(state.data.years[state.data.years.length - 1]);
     state.compareCountries = byGoals.slice(0, 4).map((row) => row.country);
     state.profileCountry = byGoals[0]?.country || state.countries[0];
     render();
@@ -87,6 +93,12 @@ function refreshRows() {
   state.compareCountries = byGoals.slice(0, 4).map((row) => row.country);
   if (!state.countries.includes(state.profileCountry)) {
     state.profileCountry = byGoals[0]?.country || state.countries[0];
+  }
+  if (!state.countries.includes(state.headToHeadA)) {
+    state.headToHeadA = byGoals[0]?.country || state.countries[0];
+  }
+  if (!state.countries.includes(state.headToHeadB) || state.headToHeadB === state.headToHeadA) {
+    state.headToHeadB = byGoals.find((row) => row.country !== state.headToHeadA)?.country || "";
   }
 }
 
@@ -252,11 +264,14 @@ function renderBarChart(rows, metric) {
     const y = top + index * 35 + 5;
     const value = row[metric];
     const barW = Math.max(2, plotW * value / maxValue);
-    return `<text class="bar-label" x="${left - 9}" y="${y + 15}" text-anchor="end">${esc(countryLabel(row.country))}</text>
+    const label = row.player ? (row.player_zh || row.player) : countryLabel(row.country);
+    const detail = row.player ? `${row.player}${row.player_zh ? `（${row.player_zh}）` : ""}` : countryLabel(row.country);
+    return `<text class="bar-label" x="${left - 9}" y="${y + 15}" text-anchor="end"><title>${esc(detail)}</title>${esc(label)}</text>
       <rect x="${left}" y="${y}" width="${barW}" height="20" rx="3" fill="${index === 0 ? "#cf7336" : "#087e83"}"/>
       <text class="bar-value" x="${left + barW + 7}" y="${y + 15}">${number(value, metric === "goals_for" ? 0 : 2)}</text>`;
   }).join("");
-  return `<div class="chart-wrap"><svg role="img" aria-label="国家队${metric === "goals_for" ? "总进球" : "场均进球"}横向条形图" viewBox="0 0 ${width} ${height}">${grid}${bars}</svg></div>`;
+  const chartLabel = rows.some((row) => row.player) ? "球员进球" : `国家队${metric === "goals_for" ? "总进球" : "场均进球"}`;
+  return `<div class="chart-wrap"><svg role="img" aria-label="${chartLabel}横向条形图" viewBox="0 0 ${width} ${height}">${grid}${bars}</svg></div>`;
 }
 
 function bindLeaderboard() {
@@ -334,8 +349,57 @@ function renderGoalMinuteHeatmap(records, country, year) {
     '<div class="goal-heatmap-body">',
     '<div class="goal-heat-groups" role="img" aria-label="' + esc(countryLabel(country)) + " " + esc(year) + ' 年进球分钟分布">' + groupsHtml + "</div>",
     '<div class="goal-heat-legend"><span>少</span><i class="goal-heat-scale"></i><span>多' + (maxGoals ? " · " + number(maxGoals) + " 球/区间" : "") + "</span></div>",
-    '<p class="goal-heat-note">按比赛分钟汇总；资料不含射门落点坐标；补时归入半场末段，加时单独展示。</p>',
+    '<p class="goal-heat-note">当前届次没有可用的射门落点坐标；此图按比赛分钟汇总进球，补时归入半场末段，加时单独展示。</p>',
     "</div></section>",
+  ].join("");
+}
+
+function renderGoalPositionMap(records, country, year) {
+  const record = (records || []).find((row) => row.country === country && row.edition_year === Number(year));
+  if (!record || !record.goals_with_location) return "";
+  const counts = record.zone_counts || Array(9).fill(0);
+  const maximum = Math.max(1, ...counts);
+  const stops = [[227, 238, 235], [239, 195, 111], [200, 88, 75]];
+  const colorAt = (value) => {
+    const scaled = Math.max(0, Math.min(1, value)) * 2;
+    const stop = Math.min(1, Math.floor(scaled));
+    const ratio = scaled - stop;
+    const a = stops[stop];
+    const b = stops[stop + 1];
+    return `rgb(${a.map((channel, index) => Math.round(channel + (b[index] - channel) * ratio)).join(",")})`;
+  };
+  const zoneNames = ["上侧", "中路", "下侧"];
+  const cells = counts.map((goals, index) => {
+    const col = index % 3;
+    const row = Math.floor(index / 3);
+    const x = 40 + col * 160;
+    const y = 24 + row * (320 / 3);
+    const intensity = goals / maximum;
+    const label = `${zoneNames[row]} · ${["己方半场", "中场", "对方半场"][col]}：${goals} 球`;
+    return `<g><rect x="${x}" y="${y}" width="160" height="${320 / 3}" fill="${colorAt(intensity)}" opacity="${goals ? 0.82 : 0.34}"/><text class="goal-pitch-count${intensity > 0.68 ? " is-strong" : ""}" x="${x + 80}" y="${y + 59}" text-anchor="middle">${goals}</text><title>${label}</title></g>`;
+  }).join("");
+  const located = Number(record.goals_with_location);
+  const expected = Number(record.expected_shot_goals);
+  const completeness = located === expected
+    ? `${number(located)} 次进球射门`
+    : `有落点 ${number(located)} / ${number(expected)} 次进球射门`;
+  const svg = `<svg class="goal-pitch-svg" viewBox="0 0 560 390" role="img" aria-label="${esc(countryLabel(country))} ${esc(year)} 年射门进球落点分区图，进攻方向朝右">
+    <rect x="40" y="24" width="480" height="320" fill="#edf4e9" rx="2"/>${cells}
+    <g class="goal-pitch-grid"><line x1="200" y1="24" x2="200" y2="344"/><line x1="360" y1="24" x2="360" y2="344"/><line x1="40" y1="${24 + 320 / 3}" x2="520" y2="${24 + 320 / 3}"/><line x1="40" y1="${24 + 640 / 3}" x2="520" y2="${24 + 640 / 3}"/></g>
+    <rect class="goal-pitch-lines" x="40" y="24" width="480" height="320"/><line class="goal-pitch-lines" x1="280" y1="24" x2="280" y2="344"/>
+    <circle class="goal-pitch-lines" cx="280" cy="184" r="42"/><circle class="goal-pitch-spot" cx="280" cy="184" r="2.2"/>
+    <rect class="goal-pitch-lines" x="40" y="104" width="75" height="160"/><rect class="goal-pitch-lines" x="445" y="104" width="75" height="160"/>
+    <rect class="goal-pitch-lines" x="40" y="150" width="28" height="68"/><rect class="goal-pitch-lines" x="492" y="150" width="28" height="68"/>
+    <text class="goal-pitch-label" x="40" y="15">己方球门</text><text class="goal-pitch-label" x="520" y="15" text-anchor="end">进攻方向 →</text>
+    <text class="goal-pitch-depth" x="120" y="370" text-anchor="middle">己方半场</text><text class="goal-pitch-depth" x="280" y="370" text-anchor="middle">中场</text><text class="goal-pitch-depth" x="440" y="370" text-anchor="middle">对方半场</text>
+  </svg>`;
+  return [
+    '<section class="panel goal-heatmap-panel goal-position-panel">',
+    '<div class="panel-heading"><h3>' + esc(countryLabel(country)) + " · " + esc(year) + ' 射门进球落点图</h3><span class="panel-unit">' + completeness + "</span></div>",
+    '<div class="goal-position-body">',
+    '<div class="goal-position-chart">' + svg + '<div class="goal-position-legend"><span>较少</span><i class="goal-position-scale"></i><span>较多 · 单元格数字为落点数</span></div></div>',
+    '<div class="goal-source"><a href="https://github.com/hudl/open-data" target="_blank" rel="noreferrer"><img src="./assets/statsbomb-open-data.png" alt="StatsBomb" loading="lazy"></a><p>落点取自 <a href="https://github.com/hudl/open-data" target="_blank" rel="noreferrer">StatsBomb Open Data</a>。每次进攻方向统一朝右，按纵深与横向位置汇总；不含乌龙球及点球大战。</p></div>',
+    '</div></section>',
   ].join("");
 }
 
@@ -355,7 +419,8 @@ function renderProfile() {
   const selectedSquad = countrySquads.filter((row) => row.edition_year === Number(state.profileYear));
   const hasClubData = selectedSquad.some((player) => player.club);
   const positionLabels = { GK: "门将", DF: "后卫", MF: "中场", FW: "前锋" };
-  const goalHeatmapHtml = renderGoalMinuteHeatmap(state.data.goal_time_heatmaps, squadCountry, state.profileYear);
+  const goalHeatmapHtml = renderGoalPositionMap(state.data.goal_position_maps, squadCountry, state.profileYear)
+    || renderGoalMinuteHeatmap(state.data.goal_time_heatmaps, squadCountry, state.profileYear);
   const stageRows = [
     { label: "小组赛", stage: summary.group },
     { label: "淘汰赛", stage: summary.knockout },
@@ -505,6 +570,73 @@ function renderCompare() {
   }));
 }
 
+function renderHeadToHead() {
+  setPageHeading("国家队世界杯对阵", "比较两队的世界杯交锋战绩、进球和逐场比分。");
+  const [teamA, teamB] = [state.headToHeadA, state.headToHeadB];
+  const teamAName = countryLabel(teamA);
+  const teamBName = countryLabel(teamB);
+  const options = (selected, other) => state.countries
+    .filter((country) => country !== other)
+    .map((country) => `<option value="${esc(country)}" ${country === selected ? "selected" : ""}>${esc(countryLabel(country))} · ${esc(country)}</option>`)
+    .join("");
+  const matches = state.rows
+    .filter((row) => row.country === teamA && row.opponent === teamB)
+    .sort((a, b) => b.edition_year - a.edition_year || String(b.match_date).localeCompare(String(a.match_date)));
+  const winsA = matches.filter((row) => row.result === "胜").length;
+  const draws = matches.filter((row) => row.result === "平").length;
+  const winsB = matches.filter((row) => row.result === "负").length;
+  const goalsA = matches.reduce((total, row) => total + row.goals_for, 0);
+  const goalsB = matches.reduce((total, row) => total + row.goals_against, 0);
+  const chart = matches.length
+    ? renderBarChart([
+      { country: teamA, goals_for: goalsA },
+      { country: teamB, goals_for: goalsB },
+    ], "goals_for")
+    : '<div class="empty-state">这两支队伍在已收录世界杯中没有交锋记录</div>';
+  const history = matches.map((row) => {
+    const outcome = row.result === "平" ? "平局" : row.result === "胜" ? `${teamAName} 胜` : `${teamBName} 胜`;
+    return `<tr><td>${row.edition_year}</td><td>${esc(row.match_date || "—")}</td><td>${esc(row.stage)}</td><td class="h2h-score">${row.goals_for} : ${row.goals_against}</td><td>${esc(outcome)}</td></tr>`;
+  }).join("");
+  document.getElementById("view-root").innerHTML = `
+    <section class="view-section">
+      <div class="section-head h2h-heading">
+        <div><h2>世界杯历史交锋</h2><p class="section-note">按当前队名口径统计已收录比赛</p></div>
+        <div class="controls h2h-controls">
+          <label class="control compact">国家队 A<select id="h2h-team-a">${options(teamA, teamB)}</select></label>
+          <label class="control compact">国家队 B<select id="h2h-team-b">${options(teamB, teamA)}</select></label>
+          <button class="h2h-action" id="h2h-swap" type="button">交换</button>
+          <button class="h2h-action primary" id="h2h-random" type="button">随机选两队</button>
+        </div>
+      </div>
+      <div class="h2h-result-strip">
+        <div><span>交锋场数</span><strong>${number(matches.length)} 场</strong></div>
+        <div><span>${esc(teamAName)} 获胜</span><strong>${number(winsA)} 场</strong></div>
+        <div><span>平局</span><strong>${number(draws)} 场</strong></div>
+        <div><span>${esc(teamBName)} 获胜</span><strong>${number(winsB)} 场</strong></div>
+      </div>
+      <div class="h2h-layout">
+        <section class="panel"><div class="panel-heading"><h3>交锋累计进球</h3><span class="panel-unit">单位：球</span></div>${chart}</section>
+        <section class="panel table-panel"><div class="panel-heading"><h3>逐场比分</h3><span class="panel-unit">${number(matches.length)} 场</span></div>
+          <div class="table-scroll"><table class="h2h-table"><thead><tr><th>届次</th><th>日期</th><th>阶段</th><th>${esc(teamAName)} : ${esc(teamBName)}</th><th>赛果</th></tr></thead>
+          <tbody>${history || '<tr><td colspan="5" class="empty-state">暂无交锋记录</td></tr>'}</tbody></table></div>
+        </section>
+      </div>
+    </section>`;
+  document.getElementById("h2h-team-a").addEventListener("change", (event) => { state.headToHeadA = event.target.value; renderHeadToHead(); });
+  document.getElementById("h2h-team-b").addEventListener("change", (event) => { state.headToHeadB = event.target.value; renderHeadToHead(); });
+  document.getElementById("h2h-swap").addEventListener("click", () => {
+    [state.headToHeadA, state.headToHeadB] = [state.headToHeadB, state.headToHeadA];
+    renderHeadToHead();
+  });
+  document.getElementById("h2h-random").addEventListener("click", () => {
+    const first = Math.floor(Math.random() * state.countries.length);
+    const second = Math.floor(Math.random() * (state.countries.length - 1));
+    state.headToHeadA = state.countries[first];
+    state.headToHeadB = state.countries[second >= first ? second + 1 : second];
+    renderHeadToHead();
+  });
+}
+
 function renderHeatmap() {
   setPageHeading("国家队 × 届次热图", "比较进球最多的国家队在各届世界杯的进球分布。");
   const stage = state.heatStage;
@@ -544,6 +676,69 @@ function renderHeatmap() {
   document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => openCountryProfile(button.dataset.country)));
 }
 
+function renderParticipants() {
+  setPageHeading("世界杯各届参赛队名单", "按届次查看世界杯参赛国家队和当届比赛数据。");
+  const yearRows = state.rows.filter((row) => row.edition_year === Number(state.participantYear));
+  const search = state.participantSearch.trim().toLowerCase();
+  const teams = aggregate(yearRows).filter((team) => (
+    !search
+    || countryLabel(team.country).toLowerCase().includes(search)
+    || team.country.toLowerCase().includes(search)
+  ));
+  teams.sort((a, b) => state.participantSort === "goals"
+    ? b.goals_for - a.goals_for || countryLabel(a.country).localeCompare(countryLabel(b.country), "zh-CN")
+    : countryLabel(a.country).localeCompare(countryLabel(b.country), "zh-CN"));
+  const goals = yearRows.reduce((total, row) => total + row.goals_for, 0);
+  const matches = yearRows.length / 2;
+  const tableRows = teams.map((team, index) => `
+    <tr><td class="rank-cell">${number(index + 1)}</td>
+      <td class="country-name-cell"><button class="country-link" data-country="${esc(team.country)}" type="button">${esc(countryLabel(team.country))}</button></td>
+      <td>${number(team.matches)}</td><td>${number(team.wins)} / ${number(team.draws)} / ${number(team.losses)}</td>
+      <td>${number(team.goals_for)}</td><td>${number(team.goals_against)}</td><td>${team.goal_difference > 0 ? "+" : ""}${number(team.goal_difference)}</td></tr>`).join("");
+  document.getElementById("view-root").innerHTML = `
+    <section class="view-section">
+      <div class="section-head">
+        <div><h2>${esc(state.participantYear)} 年世界杯</h2><p class="section-note">点击国家队名查看该届阵容；同一支队伍只列一次</p></div>
+        <div class="controls">
+          <label class="control compact">世界杯届次<select id="participant-year">${state.data.years.map((year) => `<option value="${year}" ${String(year) === String(state.participantYear) ? "selected" : ""}>${year}</option>`).join("")}</select></label>
+          <label class="control compact">排序<select id="participant-sort"><option value="name" ${state.participantSort === "name" ? "selected" : ""}>国家队名称</option><option value="goals" ${state.participantSort === "goals" ? "selected" : ""}>总进球</option></select></label>
+          <label class="control search-control">搜索国家队<input id="participant-search" type="search" value="${esc(state.participantSearch)}" placeholder="输入国家队名称" autocomplete="off"></label>
+          <span class="result-count">${number(teams.length)} 支国家队</span>
+        </div>
+      </div>
+      <div class="participant-stats">
+        <div><span>参赛国家队</span><strong>${number(aggregate(yearRows).length)} 支</strong></div>
+        <div><span>比赛场数</span><strong>${number(matches)} 场</strong></div>
+        <div><span>总进球</span><strong>${number(goals)} 球</strong></div>
+        <div><span>场均进球</span><strong>${number(matches ? goals / matches : 0, 2)} 球/场</strong></div>
+      </div>
+      <section class="panel table-panel">
+        <div class="panel-heading"><h3>${esc(state.participantYear)} 年参赛国家队</h3><span class="panel-unit">胜 / 平 / 负；单位：球</span></div>
+        <div class="table-scroll"><table class="participant-table"><thead><tr><th>#</th><th>国家队</th><th>比赛场数</th><th>胜 / 平 / 负</th><th>进球</th><th>失球</th><th>净胜球</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="7" class="empty-state">没有符合条件的国家队</td></tr>'}</tbody></table></div>
+      </section>
+    </section>`;
+  document.getElementById("participant-year").addEventListener("change", (event) => {
+    state.participantYear = event.target.value;
+    state.participantSearch = "";
+    renderParticipants();
+  });
+  document.getElementById("participant-sort").addEventListener("change", (event) => {
+    state.participantSort = event.target.value;
+    renderParticipants();
+  });
+  document.getElementById("participant-search").addEventListener("input", (event) => {
+    state.participantSearch = event.target.value;
+    renderParticipants();
+    const input = document.getElementById("participant-search");
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+  document.querySelectorAll("[data-country]").forEach((button) => button.addEventListener("click", () => {
+    openCountryProfile(button.dataset.country, state.participantYear);
+  }));
+}
+
 function filteredRowsForStage(stage) {
   return stage === "全部" ? state.rows : state.rows.filter((row) => row.stage === stage);
 }
@@ -566,10 +761,10 @@ function renderScorers() {
   const search = state.scorerSearch.trim().toLowerCase();
   const rows = yearRows.filter((row) => (
     (state.scorerCountry === "all" || row.country === state.scorerCountry)
-    && (!search || row.player.toLowerCase().includes(search) || countryLabel(row.country).toLowerCase().includes(search))
+    && (!search || row.player.toLowerCase().includes(search) || (row.player_zh || "").includes(search) || countryLabel(row.country).toLowerCase().includes(search))
   )).sort((a, b) => b.goals - a.goals || b.scoring_matches - a.scoring_matches || a.player.localeCompare(b.player));
   const tableRows = rows.map((row, index) => `
-    <tr><td class="rank-cell">${index + 1}</td><td class="country-name-cell">${esc(row.player)}</td>
+    <tr><td class="rank-cell">${index + 1}</td><td class="player-name-cell"><span class="player-name-en">${esc(row.player)}</span>${row.player_zh ? `<span class="player-name-zh">${esc(row.player_zh)}</span>` : ""}</td>
       <td>${esc(state.nameMode === "source" ? sourceCountryLabel(row.source_countries) : countryLabel(row.country))}</td>
       <td>${number(row.goals)}</td><td>${number(row.penalty_goals)}</td><td>${number(row.own_goals)}</td>
       <td>${number(row.scoring_matches)}</td><td>${state.scorerYear === "all" ? `${number(row.editions)} 届` : row.edition_year}</td></tr>`).join("");
@@ -587,12 +782,12 @@ function renderScorers() {
       </div>
       <div class="scorer-layout">
         <section class="panel"><div class="panel-heading"><h3>进球最多的球员</h3><span class="panel-unit">单位：球</span></div>${scorerChart}</section>
-        <section class="panel table-panel"><div class="panel-heading"><h3>射手明细</h3><div class="data-links"><a class="data-link" href="./data/player_goal_summary.csv" download>下载生涯汇总</a><a class="data-link" href="./data/player_goal_summary_by_edition.csv" download>下载逐届汇总</a></div></div>
+        <section class="panel table-panel"><div class="panel-heading"><h3>射手明细</h3><div class="data-links"><a class="data-link" href="./data/player_goal_summary.csv" download>下载生涯汇总</a><a class="data-link" href="./data/player_goal_summary_by_edition.csv" download>下载逐届汇总</a><a class="data-link" href="./data/player_name_translations.csv" download>下载中文名映射</a></div></div>
           <div class="table-scroll"><table><thead><tr><th>#</th><th>球员</th><th>国家队</th><th>进球（球）</th><th>点球（球）</th><th>乌龙球（次）</th><th>进球场次</th><th>届次</th></tr></thead>
           <tbody>${tableRows || '<tr><td colspan="8" class="empty-state">没有符合筛选条件的球员</td></tr>'}</tbody></table></div>
         </section>
       </div>
-      <p class="section-note scorer-method">汇总按球员姓名和国家队归并；数据源没有稳定球员ID，少数拼写差异或同名情况可能无法自动识别。</p>
+      <p class="section-note scorer-method">中文名使用常见译名；尚未核对的球员保留原名。汇总按球员姓名和国家队归并；数据源没有稳定球员ID，少数拼写差异或同名情况可能无法自动识别。</p>
     </section>`;
   document.getElementById("scorer-year").addEventListener("change", (event) => { state.scorerYear = event.target.value; renderScorers(); });
   document.getElementById("scorer-country").addEventListener("change", (event) => { state.scorerCountry = event.target.value; renderScorers(); });
@@ -617,6 +812,8 @@ function renderView() {
   if (state.view === "leaderboard") renderLeaderboard();
   else if (state.view === "profile") renderProfile();
   else if (state.view === "compare") renderCompare();
+  else if (state.view === "head-to-head") renderHeadToHead();
+  else if (state.view === "participants") renderParticipants();
   else if (state.view === "heatmap") renderHeatmap();
   else renderScorers();
 }

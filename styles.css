@@ -103,6 +103,9 @@ tbody tr:hover { background: #f4f8f7; }
 .country-link:hover { text-decoration: underline; }
 .rank-cell { color: #7b878c; width: 40px; }
 .country-name-cell { min-width: 145px; }
+.player-name-cell { min-width: 260px; text-align: left !important; }
+.player-name-en { color: var(--ink); }
+.player-name-zh { color: var(--muted); margin-left: 8px; font-size: 11px; }
 .positive { color: var(--green); }
 .negative { color: var(--red); }
 .stage-badge { color: var(--muted); background: #f0f3f2; border-radius: 4px; padding: 3px 7px; font-size: 10px; }
@@ -133,6 +136,21 @@ tbody tr:hover { background: #f4f8f7; }
 .goal-heat-legend { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10px; }
 .goal-heat-scale { display: inline-block; width: 82px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #b7dddd, #cf7336); }
 .goal-heat-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.goal-position-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(210px, .55fr); gap: 20px; align-items: center; padding: 12px 18px 16px; }
+.goal-position-chart { min-width: 0; }
+.goal-pitch-svg { display: block; width: min(100%, 700px); height: auto; margin: 0 auto; }
+.goal-pitch-lines { fill: none; stroke: rgba(255,255,255,.92); stroke-width: 2; }
+.goal-pitch-grid { fill: none; stroke: rgba(255,255,255,.76); stroke-width: 1.5; }
+.goal-pitch-spot { fill: rgba(255,255,255,.95); }
+.goal-pitch-count { fill: #243238; font-size: 21px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.goal-pitch-count.is-strong { fill: #fff; }
+.goal-pitch-label, .goal-pitch-depth { fill: #657279; font-size: 11px; }
+.goal-position-legend { display: flex; justify-content: center; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+.goal-position-scale { display: inline-block; width: 88px; height: 9px; border-radius: 2px; background: linear-gradient(90deg, #e3eeeb, #efc36f, #c8584b); }
+.goal-source { display: flex; align-items: center; gap: 12px; border-left: 1px solid var(--line); padding: 8px 0 8px 18px; }
+.goal-source img { display: block; width: 112px; max-width: 30vw; height: auto; }
+.goal-source p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.goal-source a { color: #176b6e; }
 
 .compare-layout { display: grid; grid-template-columns: 255px minmax(0, 1fr); gap: 16px; align-items: start; }
 .compare-picker { padding: 16px; }
@@ -150,6 +168,27 @@ tbody tr:hover { background: #f4f8f7; }
 .segment-button.is-active { color: #075f63; background: var(--teal-light); font-weight: 700; }
 .compare-main { display: grid; gap: 16px; min-width: 0; }
 .compare-summary td:first-child { min-width: 130px; }
+.h2h-heading { align-items: end; }
+.h2h-controls { justify-content: end; }
+.h2h-controls .control select { min-width: 165px; }
+.h2h-action { height: 36px; padding: 0 12px; border: 1px solid #bfcaca; border-radius: 5px; background: white; color: var(--ink); font-size: 12px; }
+.h2h-action:hover { border-color: var(--teal); color: var(--teal); }
+.h2h-action.primary { border-color: var(--teal); background: var(--teal); color: white; font-weight: 700; }
+.h2h-action.primary:hover { background: #06686c; }
+.h2h-result-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); margin: 0 0 16px; overflow: hidden; }
+.h2h-result-strip > div { min-height: 76px; padding: 13px 16px; border-right: 1px solid var(--line); }
+.h2h-result-strip > div:last-child { border-right: 0; }
+.h2h-result-strip span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 7px; }
+.h2h-result-strip strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.h2h-layout { display: grid; grid-template-columns: minmax(300px, .75fr) minmax(480px, 1.25fr); gap: 16px; align-items: start; }
+.h2h-table { min-width: 520px; }
+.h2h-score { font-weight: 750; font-variant-numeric: tabular-nums; }
+.participant-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); margin: 0 0 16px; overflow: hidden; }
+.participant-stats > div { min-height: 76px; padding: 13px 16px; border-right: 1px solid var(--line); }
+.participant-stats > div:last-child { border-right: 0; }
+.participant-stats span { display: block; color: var(--muted); font-size: 11px; margin-bottom: 7px; }
+.participant-stats strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.participant-table { min-width: 620px; }
 .data-link { color: #176b6e; font-size: 11px; text-decoration: none; white-space: nowrap; }
 .data-links { display: flex; flex-wrap: wrap; justify-content: end; gap: 12px; }
 .data-link:hover { text-decoration: underline; }
@@ -195,7 +234,9 @@ tbody tr:hover { background: #f4f8f7; }
   .content-wrap { padding: 21px 16px; }
   .page-heading { align-items: start; }
   .dashboard-grid, .profile-grid, .scorer-layout { grid-template-columns: 1fr; }
-  .compare-layout { grid-template-columns: 1fr; }
+  .goal-position-body { grid-template-columns: 1fr; }
+  .goal-source { border-left: 0; border-top: 1px solid var(--line); padding: 14px 0 0; }
+  .compare-layout, .h2h-layout { grid-template-columns: 1fr; }
   .compare-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .compare-picker h3, .compare-picker p, .selected-list { grid-column: 1 / -1; }
   .compare-picker select { min-width: 0; }
@@ -233,6 +274,16 @@ tbody tr:hover { background: #f4f8f7; }
   .squad-table th, .squad-table td { padding-left: 6px; padding-right: 6px; }
   .compare-picker { grid-template-columns: 1fr; }
   .compare-picker h3, .compare-picker p, .selected-list { grid-column: auto; }
+  .h2h-heading { align-items: stretch; }
+  .h2h-controls { display: grid; grid-template-columns: 1fr 1fr; }
+  .h2h-controls .control select { width: 100%; min-width: 0; }
+  .h2h-action { width: 100%; }
+  .h2h-result-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .h2h-result-strip > div:nth-child(2) { border-right: 0; }
+  .h2h-result-strip > div:nth-child(n+3) { border-top: 1px solid var(--line); }
+  .participant-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .participant-stats > div:nth-child(2) { border-right: 0; }
+  .participant-stats > div:nth-child(n+3) { border-top: 1px solid var(--line); }
   .site-footer { flex-direction: column; gap: 5px; }
   .chart-wrap { padding-left: 7px; padding-right: 7px; }
 }
